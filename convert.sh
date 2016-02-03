@@ -68,6 +68,7 @@ function StartConversion {
             mv "$f" "$f-1"
             fname="$CleanNZBName" #`basename "$f" .mkv`
             WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'"
+            Process="Renamed to MP4"
             $ffmpeg -i "$f-1" -vcodec copy -acodec copy "$OutputDir/$fname.mp4"
             RC=$?
             CheckRC $RC $f
@@ -76,6 +77,7 @@ function StartConversion {
         "" )
           ##  If there is no detected audio stream, don't bother
           WriteLog "Can't Determine Audio, Skipping $f"
+          Process="Skipped"
         ;;
 
         * )
@@ -85,6 +87,7 @@ function StartConversion {
           fname="$CleanNZBName" #`basename "$f" .mkv`
           WriteLog "Audio Processing Required"
           WriteLog "Executing $ffmpeg -y -i '$f-1' -map 0 $sopts $vopts $aopts '$OutputDir/$fname.mp4'"
+          Process="Converted"
           $ffmpeg -hwaccel auto -nostdin -y -i "$f-1" -map 0 $sopts $vopts $aopts "$OutputDir/$fname.mp4" 2>&1
           RC=$?
           CheckRC $RC $f
@@ -161,7 +164,7 @@ done
 
 function SendNotification {
   WriteLog "Sending email to $EmailTo"
-  echo "convert.sh has finished" | mutt -a $LogFile -s "File Converted RC=$RC" -- $EmailTo
+  echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" | mutt -a $LogFile -s "$CleanNZBName $Process RC=$RC" -- $EmailTo
 }
 
 function CheckRC {
@@ -169,12 +172,14 @@ function CheckRC {
        "0" )
           ##  put new file in place
           WriteLog "Conversion = SUCCESS"
+          ProcessingResult="Success"
           #rm -rf "$f"-1
           chmod 666 "$2"
        ;;
 
        * )
           WriteLog "Conversion = FAIL - $1"
+          ProcessingResult="Failed - $1"
           ##  revert back
           rm -rf "$2"
           mv "$2"-1 "$2"
@@ -194,6 +199,9 @@ Category="$5"
 Group="$6"
 PostProcessStatus="$7"
 FailURL="$8"
+
+ProcessingResult="-1"
+Process="none"
 
 case "$Category" in
 
