@@ -7,7 +7,6 @@ RC="-1"
 EmailTo="pcrosthwaite@gmail.com"
 
 function WriteLog {
-echo "i am $# - $1 - ${#1}"
 
   case $# in
     1)
@@ -31,7 +30,6 @@ echo "i am $# - $1 - ${#1}"
     ;;
   esac
 
-echo "size is ${#IN}"
 if [ ${#IN} -ne 0 ]; then
   DateTime=`date "+%d/%m/%Y %H:%M:%S"`
   echo $DateTime' : '$IN >> "$LogFile"
@@ -134,13 +132,11 @@ IFS=$OLDIFS
 
 # get length of an array
 tLen=${#fileArray[@]}
-echo "len is $tLen"
 
 # use for loop read all filenames
 for (( i=0; i<${tLen}; i++ ));
 do
   f="${fileArray[$i]}"
-  echo "i is $i"
 
   case "$Mode" in
     "CleanUp")
@@ -165,7 +161,7 @@ done
 
 function SendNotification {
   WriteLog "Sending email to $EmailTo"
-#  echo "convert.sh has finished" | mutt -a $LogFile -s "File Converted RC=$RC" -- $EmailTo
+  echo "convert.sh has finished" | mutt -a $LogFile -s "File Converted RC=$RC" -- $EmailTo
 }
 
 function CheckRC {
@@ -179,7 +175,7 @@ function CheckRC {
 
        * )
           WriteLog "Conversion = FAIL - $1"
-                 ##  revert back
+          ##  revert back
           rm -rf "$2"
           mv "$2"-1 "$2"
        ;;
@@ -189,17 +185,6 @@ function CheckRC {
 rm -rf $LogFile
 touch $LogFile
 chmod 666 $LogFile
-
-echo "------------------------" >> $LogFile
-echo "1.... $1" >> $LogFile
-echo "2.... $2" >> $LogFile
-echo "3.... $3" >> $LogFile
-echo "4.... $4" >> $LogFile
-echo "5.... $5" >> $LogFile
-echo "6.... $6" >> $LogFile
-echo "7.... $7" >> $LogFile
-echo "8.... $8" >> $LogFile
-echo "------------------------" >> $LogFile
 
 FinalDir="$1"
 OrigNameNZB="$2"
@@ -229,17 +214,17 @@ case "$Category" in
 
 esac
 
-echo "------------------------" >> $LogFile
-echo "FinalDir........... $FinalDir" >> $LogFile 
-echo "OrigNameNZB........ $OrigNameNZB" >> $LogFile
-echo "CleanNZBName....... $CleanNZBName" >> $LogFile
-echo "IndexersReportNbr.. $IndexersReportNbr" >> $LogFile
-echo "Category........... $Category" >> $LogFile
-echo "Group.............. $Group" >> $LogFile
-echo "PostProcessStatus.. $PostProcessStatus" >> $LogFile
-echo "FailURL............ $FailURL" >> $LogFile
-echo "OutputDir.......... $OutputDir" >> $LogFile
-echo "------------------------" >> $LogFile
+WriteLog -noscreen "------------------------"
+WriteLog -noscreen "FinalDir........... $FinalDir"
+WriteLog -noscreen "OrigNameNZB........ $OrigNameNZB"
+WriteLog -noscreen "CleanNZBName....... $CleanNZBName"
+WriteLog -noscreen "IndexersReportNbr.. $IndexersReportNbr"
+WriteLog -noscreen "Category........... $Category"
+WriteLog -noscreen "Group.............. $Group"
+WriteLog -noscreen "PostProcessStatus.. $PostProcessStatus"
+WriteLog -noscreen "FailURL............ $FailURL"
+WriteLog -noscreen "OutputDir.......... $OutputDir"
+WriteLog -noscreen "------------------------"
 
 if [ -d "$FinalDir" ]
 then
