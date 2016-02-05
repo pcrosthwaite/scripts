@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Setup the obvious
 ffprobe="/usr/local/bin/ffprobe"
 ffmpeg="/usr/local/bin/ffmpeg"
 LogFile="/tmp/sab.log"
@@ -7,7 +8,9 @@ RC="-1"
 EmailTo="pcrosthwaite@gmail.com"
 
 function WriteLog {
+ # This is what will record our brave deeds into the history books
 
+  # If we only have a message to record, then set our prophet accordingly
   case $# in
     1)
       if [ ${#1} -gt 0 ]
@@ -30,6 +33,7 @@ function WriteLog {
     ;;
   esac
 
+# As long as we have the information passed to us, then ensure our message is heard on all required mediums
 if [ ${#IN} -ne 0 ]; then
   DateTime=`date "+%d/%m/%Y %H:%M:%S"`
   echo $DateTime' : '$IN >> "$LogFile"
@@ -44,6 +48,8 @@ IN=""
 }
 
 function StartConversion {
+ # This vehicle will cast its steely eye over the flock and do what must be done
+ # to bring them back to th elight
   f="$1"
   WriteLog "Processing File $f"
 
@@ -97,14 +103,11 @@ function StartConversion {
 }
 
 function ReadFiles {
+ # Conduct the clearing of the misguided, and ensure that the files are consistently good.
 
-#  go over all MKVs
 DIR="$1"
 
 Mode="$2"
-
-# failsafe - fall back to current directory
-#[ "$DIR" == "" ] && DIR="."
 
 # save and change IFS
 OLDIFS=$IFS
@@ -112,6 +115,7 @@ IFS=$'\n'
 
 # read all file name into an array
 
+# Based on our Mode, find the flock to inspect
 case "$Mode" in
 
   "CleanUp")
@@ -130,13 +134,13 @@ case "$Mode" in
 
 esac
 
-# restore it
+# restore it to the old ways
 IFS=$OLDIFS
 
-# get length of an array
+# get number in  the flock
 tLen=${#fileArray[@]}
 
-# use for loop read all filenames
+# Inspect the flock and conduct what is needed to be done
 for (( i=0; i<${tLen}; i++ ));
 do
   f="${fileArray[$i]}"
@@ -155,7 +159,7 @@ do
     ;;
 
     *)
-     WriteLog "Not processing any file changes dur to invalid mode"
+     WriteLog "Not processing any file changes due to invalid mode"
     ;;
   esac
 done
@@ -163,11 +167,14 @@ done
 }
 
 function SendNotification {
+ # Notify the world that we have completed our tasks
   WriteLog "Sending email to $EmailTo"
   echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" | mutt -a $LogFile -s "$CleanNZBName $Process RC=$RC" -- $EmailTo
 }
 
 function CheckRC {
+ # This vehicle will confirm our success or failure, and act appropriately
+
   case "$1" in
        "0" )
           ##  put new file in place
@@ -187,10 +194,12 @@ function CheckRC {
   esac
 }
 
+# Ensure our path is clear to record future events
 rm -rf $LogFile
 touch $LogFile
 chmod 666 $LogFile
 
+# Transform the passed messages into something believable
 FinalDir="$1"
 OrigNameNZB="$2"
 CleanNZBName="$3"
@@ -200,9 +209,11 @@ Group="$6"
 PostProcessStatus="$7"
 FailURL="$8"
 
+# Initiate the uninitiated
 ProcessingResult="-1"
 Process="none"
 
+# Locate paradise based on the category of our path
 case "$Category" in
 
    "tv" | "TV")
@@ -217,11 +228,14 @@ case "$Category" in
    ;;
 
    *)
+    # Someone is trying to lead us down the category path, so log the lies
+    # and output to our home.
     WriteLog "Unknown Category [$Category]"
     OutputDir="`dirname $0`"
 
 esac
 
+# Record the present
 WriteLog -noscreen "------------------------"
 WriteLog -noscreen "FinalDir........... $FinalDir"
 WriteLog -noscreen "OrigNameNZB........ $OrigNameNZB"
@@ -234,6 +248,7 @@ WriteLog -noscreen "FailURL............ $FailURL"
 WriteLog -noscreen "OutputDir.......... $OutputDir"
 WriteLog -noscreen "------------------------"
 
+# Check that our destination exists and is not a black hole
 if [ -d "$FinalDir" ]
 then
   ##  cleanup by deleting unwanted files
@@ -243,15 +258,20 @@ then
 
   WriteLog -noscreen "End File Cleanup"
 
+  # Begin changing the world
   ReadFiles "$FinalDir" "ProcessMKV"
 
 else
   WriteLog "$FinalDir doesn't exist bitches"
 fi
 
-WriteLog "Done."
+# Make sure that information is free for all who seek it
 chmod 666 $LogFile
+
+# Send out the notications on what we saw here today
 SendNotification
 
+# Write to the log and to the screen so SABNzbd displays this message in the history.
+WriteLog "Processing $ProcessingResult
 exit 0
 
