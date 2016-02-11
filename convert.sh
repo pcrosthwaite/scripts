@@ -272,6 +272,6 @@ chmod 666 $LogFile
 SendNotification
 
 # Write to the log and to the screen so SABNzbd displays this message in the history.
-WriteLog "Processing $ProcessingResult
+WriteLog "Processing $ProcessingResult"
 exit 0
 
