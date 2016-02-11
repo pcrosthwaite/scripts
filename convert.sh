@@ -181,7 +181,7 @@ function CheckRC {
           WriteLog "Conversion = SUCCESS"
           ProcessingResult="Success"
           #rm -rf "$f"-1
-          chmod 666 "$2"
+          #chmod 666 "$2"
        ;;
 
        * )
