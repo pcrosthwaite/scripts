@@ -147,7 +147,6 @@ do
 
   case "$Mode" in
     "CleanUp")
-      #f="/tmp/test/gsdfsdfsd"
       WriteLog "Deleteing $f"
       result="$(rm ""$f"" 2>&1)"
       Ret=$?
@@ -169,7 +168,20 @@ done
 function SendNotification {
  # Notify the world that we have completed our tasks
   WriteLog "Sending email to $EmailTo"
-  echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" | mutt -a $LogFile -s "$CleanNZBName $Process RC=$RC" -- $EmailTo
+  EmailMsgFile="`dirname $0`/EmailMsg"
+
+  rm -rf $EmailMsgFile
+
+  # Insert a message header
+  echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" >> $EmailMsgFile
+  echo "Other Processing Messages :" >> $EmailMsgFile
+
+  if [ $FlagUnknownCategory -eq 1 ]; then
+     echo "File processing into Plex has failed as we were unable to determine the NZB category. The file is located in $OutputDir" >> $EmailMsgFile
+  fi
+
+  #mutt -a $LogFile -s "$CleanNZBName $Process RC=$RC" -- $EmailTo < $EmailMsgFile
+  mpack -s "$CleanNZBName $Process RC=$RC" -d "$EmailMsgFile" $LogFile $EmailTo
 }
 
 function CheckRC {
@@ -194,11 +206,6 @@ function CheckRC {
   esac
 }
 
-# Ensure our path is clear to record future events
-rm -rf $LogFile
-touch $LogFile
-chmod 666 $LogFile
-
 # Transform the passed messages into something believable
 FinalDir="$1"
 OrigNameNZB="$2"
@@ -209,9 +216,26 @@ Group="$6"
 PostProcessStatus="$7"
 FailURL="$8"
 
+# Ensure our path is clear to record future events
+if [ $CleanNZBName = "" ]; then
+  mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`
+else
+  mv $LogFile `dirname $0`/Logs/$LogFile-$CleanNZBName
+fi
+
+touch $LogFile
+chmod 666 $LogFile
+
 # Initiate the uninitiated
 ProcessingResult="-1"
 Process="none"
+
+# These flags determine if the script was able to process things correctly
+# They are set during the various stages, and will determine what message is sent in the notification
+# Values
+# 0 = Off
+# 1 = On
+FlagUnknownCategory=0
 
 # Locate paradise based on the category of our path
 case "$Category" in
@@ -231,6 +255,9 @@ case "$Category" in
     # Someone is trying to lead us down the category path, so log the lies
     # and output to our home.
     WriteLog "Unknown Category [$Category]"
+    Category="Unknown"
+    FlagUnknownCategory=1
+
     OutputDir="`dirname $0`"
 
 esac
