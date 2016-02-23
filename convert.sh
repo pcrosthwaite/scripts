@@ -75,9 +75,9 @@ function StartConversion {
             fname="$CleanNZBName" #`basename "$f" .mkv`
             WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'"
             Process="Renamed to MP4"
-            $ffmpeg -i "$f-1" -vcodec copy -acodec copy "$OutputDir/$fname.mp4"
+            ErrMsg=`$ffmpeg -i "$f-1" -vcodec copy -acodec copy "$OutputDir/$fname.mp4" 2>&1`
             RC=$?
-            CheckRC $RC $f
+            CheckRC $RC $f $ErrMsg
         ;;
 
         "" )
@@ -94,9 +94,9 @@ function StartConversion {
           WriteLog "Audio Processing Required"
           WriteLog "Executing $ffmpeg -y -i '$f-1' -map 0 $sopts $vopts $aopts '$OutputDir/$fname.mp4'"
           Process="Converted"
-          $ffmpeg -hwaccel auto -nostdin -y -i "$f-1" -map 0 $sopts $vopts $aopts "$OutputDir/$fname.mp4" 2>&1
+          ErrMsg=`$ffmpeg -hwaccel auto -nostdin -y -i "$f-1" -map 0 $sopts $vopts $aopts "$OutputDir/$fname.mp4" 2>&1`
           RC=$?
-          CheckRC $RC $f
+          CheckRC $RC $f $ErrMsg
         ;;
 
   esac
@@ -198,6 +198,8 @@ function CheckRC {
 
        * )
           WriteLog "Conversion = FAIL - $1"
+          WriteLog "$3"
+          WriteLog "$ErrMsg"
           ProcessingResult="Failed - $1"
           ##  revert back
           rm -rf "$2"
@@ -218,9 +220,15 @@ FailURL="$8"
 
 # Ensure our path is clear to record future events
 if [ $CleanNZBName = "" ]; then
-  mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`
+  WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
+  mv $LogFile `dirname $0`/Logs/`basename $LogFile`-`date +"%d%m%y-%H%M%S"`
+  RC=$?
+  WriteLog "mv RC=$RC"
 else
-  mv $LogFile `dirname $0`/Logs/$LogFile-$CleanNZBName
+  WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
+  mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName
+  RC=$?
+  WriteLog "mv RC=$RC"
 fi
 
 touch $LogFile
