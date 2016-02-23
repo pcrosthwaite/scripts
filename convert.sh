@@ -202,7 +202,10 @@ function CheckRC {
           WriteLog "$ErrMsg"
           ProcessingResult="Failed - $1"
           ##  revert back
+          WriteLog "Removing failed output $OutputDir/$fname.mp4"
+          rm -rf "$OutputDir/$fname.mp4"
           rm -rf "$2"
+          
           mv "$2"-1 "$2"
        ;;
   esac
