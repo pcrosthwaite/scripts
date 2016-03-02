@@ -49,7 +49,7 @@ IN=""
 
 function LogCmd {
  # This vessel will execute the commandment and log the results to the bible
- Cmd="$1"
+ Cmd="$1 2>&1"
  LogPrefix="$2"
  
  WriteLog -noscreen "LogCmd is running $Cmd, and logging with a prefix of $LogPrefix"
