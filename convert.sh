@@ -49,12 +49,12 @@ IN=""
 
 function LogCmd {
  # This vessel will execute the commandment and log the results to the bible
- Cmd="$1 2>&1"
+ Cmd="$1" 
  LogPrefix="$2"
  
  WriteLog -noscreen "LogCmd is running $Cmd, and logging with a prefix of $LogPrefix"
 
- Ret=`$Cmd`
+ Ret=`$Cmd 2>&1`
  RC=$?
 
  WriteLog -noscreen "$LogPrefix : Cmd Output : $Ret"
@@ -88,9 +88,9 @@ function StartConversion {
             WriteLog "No Audio Processing Needed."
             LogCmd "mv ""$f"" ""$f-1"" " "[StartConversion()]"
             fname="$CleanNZBName" #`basename "$f" .mkv`
-            WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'"
+            WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'" "[StartConversion()]"
             Process="Renamed to MP4"
-            LogCmd "$ffmpeg -i ""$f-1"" -vcodec copy -acodec copy ""$OutputDir/$fname.mp4"" "
+            LogCmd "$ffmpeg -i ""$f-1"" -vcodec copy -acodec copy ""$OutputDir/$fname.mp4""" "[StartConversion()]"
             RC=$?
             CheckRC $RC $f $ErrMsg
         ;;
@@ -184,7 +184,7 @@ do
 
     "ProcessMP4")
       WriteLog "Copying $f to $OutputDir/$CleanNZBName.$FileExt"
-      LogCmd "cp $f $OutputDir/$CleanNZBName.$FileExt"
+      LogCmd "cp $f $OutputDir/$CleanNZBName.$FileExt" "[ReadFiles()]"
     ;;
 
     *)
@@ -200,7 +200,7 @@ function SendNotification {
   WriteLog "Sending email to $EmailTo"
   EmailMsgFile="`dirname $0`/EmailMsg"
 
-  LogCmd "rm -rf ""$EmailMsgFile"" "
+  LogCmd "rm -rf ""$EmailMsgFile""" "[SendNotification()]"
 
   # Insert a message header
   echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" >> $EmailMsgFile
@@ -220,9 +220,9 @@ function CheckRC {
   FileExt="${ProcessFile##*.}"
   FileName="${ProcessFile%.*}"
 
-  WriteLog -noscreen "ProcessFile : $ProcessFile"
-  WriteLog -noscreen "FileExt     : $FileExt"
-  WriteLog -noscreen "FileName    : $FileName"
+  WriteLog -noscreen "[CheckRC()] ProcessFile : $ProcessFile"
+  WriteLog -noscreen "[CheckRC()] FileExt     : $FileExt"
+  WriteLog -noscreen "[CheckRC()] FileName    : $FileName"
 
   case "$1" in
        "0" )
