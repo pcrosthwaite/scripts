@@ -187,6 +187,14 @@ function SendNotification {
 function CheckRC {
  # This vehicle will confirm our success or failure, and act appropriately
 
+  ProcessFile="$(basename ""$2"")"
+  FileExt="${ProcessFile##*.}"
+  FileName="${ProcessFile%.*}"
+
+  WriteLog -noscreen "ProcessFile : $ProcessFile"
+  WriteLog -noscreen "FileExt     : $FileExt"
+  WriteLog -noscreen "FileName    : $FileName"
+
   case "$1" in
        "0" )
           ##  put new file in place
@@ -207,6 +215,9 @@ function CheckRC {
           rm -rf "$2"
           
           mv "$2"-1 "$2"
+          
+          WriteLog "Copying $2 to $OutputDir/$CleanNZBName.$FileExt"
+          #cp "$2" "$OutputDir"
        ;;
   esac
 }
