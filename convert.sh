@@ -47,6 +47,21 @@ fi
 IN=""
 }
 
+function LogCmd {
+ # This vessel will execute the commandment and log the results to the bible
+ Cmd="$1"
+ LogPrefix="$2"
+ 
+ WriteLog -noscreen "LogCmd is running $Cmd, and logging with a prefix of $LogPrefix"
+
+ Ret=`$Cmd`
+ RC=$?
+
+ WriteLog -noscreen "$LogPrefix : Cmd Output : $Ret"
+ WriteLog -noscreen "$LogPrefix : RC         : $RC"
+
+}
+
 function StartConversion {
  # This vehicle will cast its steely eye over the flock and do what must be done
  # to bring them back to th elight
@@ -71,11 +86,11 @@ function StartConversion {
 
             ##  If the audio is one of the MP4-supported codecs
             WriteLog "No Audio Processing Needed."
-            mv "$f" "$f-1"
+            LogCmd "mv ""$f"" ""$f-1"" " "[StartConversion()]"
             fname="$CleanNZBName" #`basename "$f" .mkv`
             WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'"
             Process="Renamed to MP4"
-            ErrMsg=`$ffmpeg -i "$f-1" -vcodec copy -acodec copy "$OutputDir/$fname.mp4" 2>&1`
+            LogCmd "$ffmpeg -i ""$f-1"" -vcodec copy -acodec copy ""$OutputDir/$fname.mp4"" "
             RC=$?
             CheckRC $RC $f $ErrMsg
         ;;
@@ -127,6 +142,10 @@ case "$Mode" in
     fileArray=($(find "$DIR" -name "*.mkv" -type f))
   ;;
 
+  "ProcessMP4")
+    fileArray=($(find "$DIR" -name "*.mp4" -type f))
+  ;;
+
   *)
     WriteLog "Invalid Mode passed to ReadFiles - $Mode"
 
@@ -145,16 +164,27 @@ for (( i=0; i<${tLen}; i++ ));
 do
   f="${fileArray[$i]}"
 
+  ProcessFile="$(basename ""$f"")"
+  FileExt="${ProcessFile##*.}"
+  FileName="${ProcessFile%.*}"
+
+  WriteLog -noscreen "[ReadFiles()] ProcessFile : $ProcessFile"
+  WriteLog -noscreen "[ReadFiles()] FileExt     : $FileExt"
+  WriteLog -noscreen "[ReadFiles()] FileName    : $FileName"
+
   case "$Mode" in
     "CleanUp")
       WriteLog "Deleteing $f"
-      result="$(rm ""$f"" 2>&1)"
-      Ret=$?
-      WriteLog -noscreen "rm completed with [$result] : RC ($Ret)"
+      LogCmd "rm ""$f"" " "[ReadFiles()]"
     ;;
 
     "ProcessMKV")
       StartConversion "$f"
+    ;;
+
+    "ProcessMP4")
+      WriteLog "Copying $f to $OutputDir/$CleanNZBName.$FileExt"
+      LogCmd "cp $f $OutputDir/$CleanNZBName.$FileExt"
     ;;
 
     *)
@@ -170,7 +200,7 @@ function SendNotification {
   WriteLog "Sending email to $EmailTo"
   EmailMsgFile="`dirname $0`/EmailMsg"
 
-  rm -rf $EmailMsgFile
+  LogCmd "rm -rf ""$EmailMsgFile"" "
 
   # Insert a message header
   echo "convert.sh has finished $Process - $CleanNZBName, Result = $ProcessingResult" >> $EmailMsgFile
@@ -180,7 +210,6 @@ function SendNotification {
      echo "File processing into Plex has failed as we were unable to determine the NZB category. The file is located in $OutputDir" >> $EmailMsgFile
   fi
 
-  #mutt -a $LogFile -s "$CleanNZBName $Process RC=$RC" -- $EmailTo < $EmailMsgFile
   mpack -s "$CleanNZBName $Process RC=$RC" -d "$EmailMsgFile" $LogFile $EmailTo
 }
 
@@ -211,13 +240,13 @@ function CheckRC {
           ProcessingResult="Failed - $1"
           ##  revert back
           WriteLog "Removing failed output $OutputDir/$fname.mp4"
-          rm -rf "$OutputDir/$fname.mp4"
-          rm -rf "$2"
+          LogCmd "rm -rf ""$OutputDir/$fname.mp4"" " "[CheckRC()]"
+          LogCmd "rm -rf ""$2"" " "[CheckRC()]"
           
-          mv "$2"-1 "$2"
+          LogCmd "mv ""$2""-1 ""$2"" " "[CheckRC()]"
           
           WriteLog "Copying $2 to $OutputDir/$CleanNZBName.$FileExt"
-          #cp "$2" "$OutputDir"
+          LogCmd "cp ""$2"" ""$OutputDir/$CleanNZBName.$FileExt"" " "[CheckRC()]"
        ;;
   esac
 }
@@ -235,18 +264,14 @@ FailURL="$8"
 # Ensure our path is clear to record future events
 if [ $CleanNZBName = "" ]; then
   WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
-  mv $LogFile `dirname $0`/Logs/`basename $LogFile`-`date +"%d%m%y-%H%M%S"`
-  RC=$?
-  WriteLog "mv RC=$RC"
+  LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-`date +%d%m%y-%H%M%S`"" " "[Main()]"
 else
   WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
-  mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName
-  RC=$?
-  WriteLog "mv RC=$RC"
+  LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"" " "[Main()]"
 fi
 
-touch $LogFile
-chmod 666 $LogFile
+LogCmd "touch ""$LogFile""" "[Main()]"
+LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 
 # Initiate the uninitiated
 ProcessingResult="-1"
@@ -315,7 +340,7 @@ else
 fi
 
 # Make sure that information is free for all who seek it
-chmod 666 $LogFile
+LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 
 # Send out the notications on what we saw here today
 SendNotification
