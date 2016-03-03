@@ -253,8 +253,10 @@ function CheckRC {
 
 # Transform the passed messages into something believable
 FinalDir="$1"
+CleanDir=`echo $FinalDir | sed -r 's/\(/\\(/g' | sed -r 's/\)/\\)/g'`
 OrigNameNZB="$2"
-CleanNZBName="$3"
+NZBName="$3"
+CleanNZBName=`echo $NZBName | sed -r 's/\(/\\(/g' | sed -r 's/\)/\\)/g'`
 IndexersReportNbr="$4"
 Category="$5"
 Group="$6"
@@ -262,15 +264,21 @@ PostProcessStatus="$7"
 FailURL="$8"
 
 # Ensure our path is clear to record future events
+rm -rf $LogFile
+
 if [ $CleanNZBName = "" ]; then
-  WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
-  LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-`date +%d%m%y-%H%M%S`"" " "[Main()]"
+  #WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
+  LogFile="$BaseLogFile-`date +%d%m%y-%H%M%S`"
+  #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-`date +%d%m%y-%H%M%S`"" " "[Main()]"
 else
-  WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
-  LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"" " "[Main()]"
+  #WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
+  LogFile="$BaseLogFile-$CleanNZBName"
+  #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"" " "[Main()]"
 fi
 
-LogCmd "touch ""$LogFile""" "[Main()]"
+touch "$LogFile" 
+WriteLog -noscreen "-------------------------"
+WriteLog -noscreen "Begin Download Processing"
 LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 
 # Initiate the uninitiated
@@ -285,15 +293,18 @@ Process="none"
 FlagUnknownCategory=0
 
 # Locate paradise based on the category of our path
-case "$Category" in
+case "${Category,,}" in
 
-   "tv" | "TV")
+   # We have to assume that if the category is uTorrent, it has come from SickRage
+   # CouchPotato should be configured to send a label of Movies
+
+   "tv" | "utorrent")
 
        OutputDir="/mnt/rdisk/Downloads/Watch/Rename/TV"
 
    ;;
 
-   "movie" | "MOVIE" | "movies" | "MOVIES")
+   "movie" | "movies")
 
        OutputDir="/mnt/rdisk/Downloads/Watch/Rename/Movies"
    ;;
@@ -312,6 +323,7 @@ esac
 # Record the present
 WriteLog -noscreen "------------------------"
 WriteLog -noscreen "FinalDir........... $FinalDir"
+WriteLog -noscreen "CleanDir........... $CleanDir"
 WriteLog -noscreen "OrigNameNZB........ $OrigNameNZB"
 WriteLog -noscreen "CleanNZBName....... $CleanNZBName"
 WriteLog -noscreen "IndexersReportNbr.. $IndexersReportNbr"
@@ -345,7 +357,11 @@ LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 # Send out the notications on what we saw here today
 SendNotification
 
-# Write to the log and to the screen so SABNzbd displays this message in the history.
+# Write to the log and to the screen so ihistory knows my great deeds.
 WriteLog "Processing $ProcessingResult"
+
+WriteLog "Executing mv $LogFile `dirname $0`/Logs/"
+mv "$LogFile" "`dirname $0`/Logs/"
+
 exit 0
 
