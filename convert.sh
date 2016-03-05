@@ -3,7 +3,7 @@
 # Setup the obvious
 ffprobe="/usr/local/bin/ffprobe"
 ffmpeg="/usr/local/bin/ffmpeg"
-LogFile="/tmp/sab.log"
+BaseLogFile="/tmp/sab.log"
 RC="-1"
 EmailTo="pcrosthwaite@gmail.com"
 
@@ -131,24 +131,23 @@ IFS=$'\n'
 # read all file name into an array
 
 # Based on our Mode, find the flock to inspect
-case "$Mode" in
+case "${Mode,,}" in
 
-  "CleanUp")
+  "cleanup")
    fileArray=($(find "$DIR" -type f \( -name "*.db" -or -name "*.nfo" -or -name "*sample*.mkv" -or -name "*Sample*.mkv" -or -name "*SAMPLE*.mkv" \)))
 
   ;;
 
-  "ProcessMKV")
+  "processmkv")
     fileArray=($(find "$DIR" -name "*.mkv" -type f))
   ;;
 
-  "ProcessMP4")
+  "processmp4")
     fileArray=($(find "$DIR" -name "*.mp4" -type f))
   ;;
 
   *)
     WriteLog "Invalid Mode passed to ReadFiles - $Mode"
-
   ;;
 
 esac
@@ -158,6 +157,8 @@ IFS=$OLDIFS
 
 # get number in  the flock
 tLen=${#fileArray[@]}
+
+WriteLog "Found $tLen to process."
 
 # Inspect the flock and conduct what is needed to be done
 for (( i=0; i<${tLen}; i++ ));
@@ -172,19 +173,23 @@ do
   WriteLog -noscreen "[ReadFiles()] FileExt     : $FileExt"
   WriteLog -noscreen "[ReadFiles()] FileName    : $FileName"
 
-  case "$Mode" in
-    "CleanUp")
+  case "${Mode,,}" in
+    "cleanup")
       WriteLog "Deleteing $f"
       LogCmd "rm ""$f"" " "[ReadFiles()]"
     ;;
 
-    "ProcessMKV")
+    "processmkv")
       StartConversion "$f"
     ;;
 
-    "ProcessMP4")
+    "processmp4")
       WriteLog "Copying $f to $OutputDir/$CleanNZBName.$FileExt"
       LogCmd "cp $f $OutputDir/$CleanNZBName.$FileExt" "[ReadFiles()]"
+    ;;
+
+    "software")
+      WriteLog "Nothing to do for $Mode"
     ;;
 
     *)
@@ -266,13 +271,16 @@ FailURL="$8"
 # Ensure our path is clear to record future events
 rm -rf $LogFile
 
-if [ $CleanNZBName = "" ]; then
+LogFileExt="${BaseLogFile##*.}"
+LogFileName="${BaseLogFile%.*}"
+
+if [ "$CleanNZBName" = "" ]; then
   #WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
-  LogFile="$BaseLogFile-`date +%d%m%y-%H%M%S`"
+  LogFile="$LogFileName-`date +%d%m%y-%H%M%S`.$LogFileExt"
   #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-`date +%d%m%y-%H%M%S`"" " "[Main()]"
 else
   #WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
-  LogFile="$BaseLogFile-$CleanNZBName"
+  LogFile="$LogFileName-$CleanNZBName.$LogFileExt"
   #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"" " "[Main()]"
 fi
 
@@ -309,6 +317,10 @@ case "${Category,,}" in
        OutputDir="/mnt/rdisk/Downloads/Watch/Rename/Movies"
    ;;
 
+   "software")
+      OutputDir="/mnt/rdisk/Downloads"
+   ;;
+   
    *)
     # Someone is trying to lead us down the category path, so log the lies
     # and output to our home.
@@ -345,7 +357,13 @@ then
   WriteLog -noscreen "End File Cleanup"
 
   # Begin changing the world
+  WriteLog "Begin ProcessMKV"
   ReadFiles "$FinalDir" "ProcessMKV"
+  WriteLog "End ProcessMKV"
+
+  WriteLog "Begin ProcessMP4"
+  ReadFiles "$FinalDir" "ProcessMP4"
+  WriteLog "End ProcessMP4"
 
 else
   WriteLog "$FinalDir doesn't exist bitches"
