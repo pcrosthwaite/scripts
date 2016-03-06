@@ -379,7 +379,7 @@ WriteLog "Executing mv $LogFile `dirname $0`/Logs/"
 mv "$LogFile" "`dirname $0`/Logs/"
 
 # Write to the log and to the screen so ihistory knows my great deeds.
-WriteLog "Processing $ProcessingResult"
+echo "Processing $ProcessingResult"
 
 exit 0
 
