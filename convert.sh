@@ -5,41 +5,56 @@ ffprobe="/usr/local/bin/ffprobe"
 ffmpeg="/usr/local/bin/ffmpeg"
 BaseLogFile="/tmp/sab.log"
 RC="-1"
+NotificationsEnabled="true"
 EmailTo="pcrosthwaite@gmail.com"
+
+# VerboseMode
+# 1 = Log Everything. Display to screen everything
+# 2 = Basic Logging, Display to screen as designed
+VerboseMode=2
 
 function WriteLog {
  # This is what will record our brave deeds into the history books
+  ScreenMode=""
 
   # If we only have a message to record, then set our prophet accordingly
   case $# in
     1)
-      if [ ${#1} -gt 0 ]
-      then
+      if [ ${#1} -gt 0 ]; then
+        ScreenMode=""
         IN="$1"
       fi
-
     ;;
 
     2)
-      if [ ${#2} -gt 0 ]
-      then
+      if [ ${#2} -gt 0 ]; then
+        ScreenMode="$1"
         IN="$2"
       fi
     ;;
 
-    *)
+    3)
+      if [ ${#3} -gt 0 ]; then
+         ScreenMode="$1"
+         IN="$2"
+         VerboseMode="$3"
+      fi
+    ;;
 
+    *)
       IN="Too many arguments to WriteLog - $#"
     ;;
+  
   esac
 
 # As long as we have the information passed to us, then ensure our message is heard on all required mediums
 if [ ${#IN} -ne 0 ]; then
-  DateTime=`date "+%d/%m/%Y %H:%M:%S"`
-  echo $DateTime' : '$IN >> "$LogFile"
+  if [ $VerboseMode -eq 1 ]; then
+     DateTime=`date "+%d/%m/%Y %H:%M:%S"`
+     echo $DateTime' : '$IN >> "$LogFile"
+  fi
 
-  if [ "$1" != "-noscreen" ]
-  then
+  if [ "$ScreenMode" != "-noscreen" ] || [ $VerboseMode -eq 1 ]; then
     echo $DateTime' : '$IN
   fi
 fi
@@ -52,13 +67,21 @@ function LogCmd {
  Cmd="$1" 
  LogPrefix="$2"
  
- WriteLog -noscreen "LogCmd is running $Cmd, and logging with a prefix of $LogPrefix"
+ if [ ${#3} -gt 0 ]; then
+    VerboseMode=$3
+ fi
+
+ if [ $VerboseMode -eq 1 ]; then
+    WriteLog -noscreen "LogCmd is running $Cmd"
+ fi
 
  Ret=`$Cmd 2>&1`
  RC=$?
 
- WriteLog -noscreen "$LogPrefix : Cmd Output : $Ret"
- WriteLog -noscreen "$LogPrefix : RC         : $RC"
+ if [ $VerboseMode -le 2 ]; then
+    WriteLog -noscreen "$LogPrefix : Cmd Output : $Ret"
+    WriteLog -noscreen "$LogPrefix : RC         : $RC"
+ fi
 
 }
 
@@ -138,6 +161,10 @@ case "${Mode,,}" in
 
   ;;
 
+  "processrar")
+    fileArray=($(find "$DIR" -name "*.rar" -type f))
+  ;;
+
   "processmkv")
     fileArray=($(find "$DIR" -name "*.mkv" -type f))
   ;;
@@ -164,7 +191,6 @@ WriteLog "Found $tLen to process."
 for (( i=0; i<${tLen}; i++ ));
 do
   f="${fileArray[$i]}"
-
   ProcessFile="$(basename ""$f"")"
   FileExt="${ProcessFile##*.}"
   FileName="${ProcessFile%.*}"
@@ -179,6 +205,12 @@ do
       LogCmd "rm ""$f"" " "[ReadFiles()]"
     ;;
 
+    "processrar")
+      WriteLog "Unrar $f"
+      unrar e -idq -p- -y "$f" "$(dirname ""$f"")" 
+      ProcessingResult=$?
+    ;;
+ 
     "processmkv")
       StartConversion "$f"
     ;;
@@ -193,7 +225,7 @@ do
     ;;
 
     *)
-     WriteLog "Not processing any file changes due to invalid mode"
+      WriteLog "Not processing any file changes due to invalid mode"
     ;;
   esac
 done
@@ -215,7 +247,10 @@ function SendNotification {
      echo "File processing into Plex has failed as we were unable to determine the NZB category. The file is located in $OutputDir" >> $EmailMsgFile
   fi
 
-  mpack -s "$CleanNZBName $Process RC=$RC" -d "$EmailMsgFile" $LogFile $EmailTo
+  if [ ${NotificationsEnabled,,} = "true" ]; then
+     mpack -s "$CleanNZBName $Process RC=$RC" -d "$EmailMsgFile" $LogFile $EmailTo
+  fi
+
 }
 
 function CheckRC {
@@ -256,6 +291,19 @@ function CheckRC {
   esac
 }
 
+if [ $# -eq 0 ]; then
+   echo "1. FinalDir"
+   echo "2. OrigNameNZB"
+   echo "3. NZBName"
+   echo "4. IndexersReportNbr"
+   echo "5. Category"
+   echo "6. Group"
+   echo "7. PostProcessStatus"
+   echo "8. FailURL"
+
+   exit 0
+fi
+
 # Transform the passed messages into something believable
 FinalDir="$1"
 CleanDir=`echo $FinalDir | sed -r 's/\(/\\(/g' | sed -r 's/\)/\\)/g'`
@@ -275,13 +323,9 @@ LogFileExt="${BaseLogFile##*.}"
 LogFileName="${BaseLogFile%.*}"
 
 if [ "$CleanNZBName" = "" ]; then
-  #WriteLog "Executing mv $LogFile `dirname $0`/Logs/$LogFile-`date +"%d%m%y-%H%M%S"`"
   LogFile="$LogFileName-`date +%d%m%y-%H%M%S`.$LogFileExt"
-  #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-`date +%d%m%y-%H%M%S`"" " "[Main()]"
 else
-  #WriteLog "Executing mv $LogFile `dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"
   LogFile="$LogFileName-$CleanNZBName.$LogFileExt"
-  #LogCmd "mv ""$LogFile"" ""`dirname $0`/Logs/`basename $LogFile`-$CleanNZBName"" " "[Main()]"
 fi
 
 touch "$LogFile" 
@@ -318,7 +362,8 @@ case "${Category,,}" in
    ;;
 
    "software")
-      OutputDir="/mnt/rdisk/Downloads"
+       OutputDir="/mnt/rdisk/Downloads"
+       Process="Extract Software"
    ;;
    
    *)
@@ -334,27 +379,28 @@ esac
 
 # Record the present
 WriteLog -noscreen "------------------------"
-WriteLog -noscreen "FinalDir........... $FinalDir"
-WriteLog -noscreen "CleanDir........... $CleanDir"
-WriteLog -noscreen "OrigNameNZB........ $OrigNameNZB"
-WriteLog -noscreen "CleanNZBName....... $CleanNZBName"
-WriteLog -noscreen "IndexersReportNbr.. $IndexersReportNbr"
-WriteLog -noscreen "Category........... $Category"
-WriteLog -noscreen "Group.............. $Group"
-WriteLog -noscreen "PostProcessStatus.. $PostProcessStatus"
-WriteLog -noscreen "FailURL............ $FailURL"
-WriteLog -noscreen "OutputDir.......... $OutputDir"
+WriteLog -noscreen "1.  FinalDir........... $CleanDir"
+WriteLog -noscreen "2.  OrigNameNZB........ $OrigNameNZB"
+WriteLog -noscreen "3.  NZBName............ $CleanNZBName"
+WriteLog -noscreen "4.  IndexersReportNbr.. $IndexersReportNbr"
+WriteLog -noscreen "5.  Category........... $Category"
+WriteLog -noscreen "6.  Group.............. $Group"
+WriteLog -noscreen "7.  PostProcessStatus.. $PostProcessStatus"
+WriteLog -noscreen "8.  FailURL............ $FailURL"
+WriteLog -noscreen "    OutputDir.......... $OutputDir"
 WriteLog -noscreen "------------------------"
 
 # Check that our destination exists and is not a black hole
 if [ -d "$FinalDir" ]
 then
   ##  cleanup by deleting unwanted files
-  WriteLog -noscreen "Begin File Cleanup"
-
+  WriteLog "Begin File Cleanup"
   ReadFiles "$FinalDir" "CleanUp"
+  WriteLog "End File Cleanup"
 
-  WriteLog -noscreen "End File Cleanup"
+  WriteLog "Begin UnRAR Files"
+  ReadFiles "$FinalDir" "ProcessRAR"
+  WriteLog "End UnRAR Files"
 
   # Begin changing the world
   WriteLog "Begin ProcessMKV"
