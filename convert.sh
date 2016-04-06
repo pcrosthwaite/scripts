@@ -13,9 +13,14 @@ EmailTo="pcrosthwaite@gmail.com"
 # 2 = Basic Logging, Display to screen as designed
 VerboseMode=2
 
+# This controls what messages are logged when the VerboseMode is only doing Basic Logging
+# and should be set to the same value as Log Everything
+AlwaysLog=1
+
 function WriteLog {
  # This is what will record our brave deeds into the history books
   ScreenMode=""
+  _VerboseMode=$VerboseMode
 
   # If we only have a message to record, then set our prophet accordingly
   case $# in
@@ -37,7 +42,7 @@ function WriteLog {
       if [ ${#3} -gt 0 ]; then
          ScreenMode="$1"
          IN="$2"
-         VerboseMode="$3"
+         _VerboseMode="$3"
       fi
     ;;
 
@@ -49,12 +54,13 @@ function WriteLog {
 
 # As long as we have the information passed to us, then ensure our message is heard on all required mediums
 if [ ${#IN} -ne 0 ]; then
-  if [ $VerboseMode -eq 1 ]; then
-     DateTime=`date "+%d/%m/%Y %H:%M:%S"`
+  DateTime=`date "+%d/%m/%Y %H:%M:%S"`
+
+  if [ $_VerboseMode -eq 1 ]; then
      echo $DateTime' : '$IN >> "$LogFile"
   fi
 
-  if [ "$ScreenMode" != "-noscreen" ] || [ $VerboseMode -eq 1 ]; then
+  if [ "$ScreenMode" != "-noscreen" ] || [ $_VerboseMode -eq 1 ]; then
     echo $DateTime' : '$IN
   fi
 fi
@@ -68,17 +74,19 @@ function LogCmd {
  LogPrefix="$2"
  
  if [ ${#3} -gt 0 ]; then
-    VerboseMode=$3
+    _VerboseMode=$3
+ else
+    _VerboseMode=$VerboseMode
  fi
 
- if [ $VerboseMode -eq 1 ]; then
+ if [ $_VerboseMode -eq 1 ]; then
     WriteLog -noscreen "LogCmd is running $Cmd"
  fi
 
  Ret=`$Cmd 2>&1`
  RC=$?
 
- if [ $VerboseMode -le 2 ]; then
+ if [ $_VerboseMode -le 2 ]; then
     WriteLog -noscreen "$LogPrefix : Cmd Output : $Ret"
     WriteLog -noscreen "$LogPrefix : RC         : $RC"
  fi
@@ -89,7 +97,7 @@ function StartConversion {
  # This vehicle will cast its steely eye over the flock and do what must be done
  # to bring them back to th elight
   f="$1"
-  WriteLog "Processing File $f"
+  WriteLog -screen "Processing File $f" $AlwaysLog
 
   ##  Detect what audio codec is being used:
   audio=$($ffprobe "$f" 2>&1 | sed -n '/Audio:/s/.*: \([a-zA-Z0-9]*\).*/\1/p' | sed 1q)
@@ -102,39 +110,50 @@ function StartConversion {
   ##  Set default subtitle settings:
   sopts="-c:s copy"
 
-  WriteLog "Audio detected is $audio"
+  WriteLog -screen "Audio detected is $audio"
 
   case "$audio" in
         aac|alac|mp3|mp2|ac3 )
 
             ##  If the audio is one of the MP4-supported codecs
-            WriteLog "No Audio Processing Needed."
+            WriteLog -screen "No Audio Processing Needed." $AlwaysLog 
             LogCmd "mv ""$f"" ""$f-1"" " "[StartConversion()]"
             fname="$CleanNZBName" #`basename "$f" .mkv`
-            WriteLog "Executing $ffmpeg -i '$f-1' -vcodec copy -acodec copy '$OutputDir/$fname.mp4'" "[StartConversion()]"
+            WriteLog -noscreen "Executing $ffmpeg -i '$f-1' -y -vcodec copy -acodec copy '$OutputDir/$fname.mp4'"
             Process="Renamed to MP4"
-            LogCmd "$ffmpeg -i ""$f-1"" -vcodec copy -acodec copy ""$OutputDir/$fname.mp4""" "[StartConversion()]"
+            LogCmd "$ffmpeg -i ""$f-1"" -y -vcodec copy -acodec copy ""$OutputDir/$fname.mp4""" "[StartConversion()]"
             RC=$?
             CheckRC $RC $f $ErrMsg
+
+            # Remember that uTorrent will be expecting the original file, so return it to once it was.
+            if [ "${Group,,}" = "utorrent" ]; then
+               LogCmd "mv ""$f-1"" ""$f"" " "[StartConversion()]"
+            fi
         ;;
 
         "" )
           ##  If there is no detected audio stream, don't bother
-          WriteLog "Can't Determine Audio, Skipping $f"
+          WriteLog -screen "Can't Determine Audio, Skipping $f" $AlwaysLog 
           Process="Skipped"
         ;;
 
         * )
 
           ##  anything else, convert
-          mv "$f" "$f-1"
+          LogCmd "mv ""$f"" ""$f-1"" " "[StartConversion()]"
           fname="$CleanNZBName" #`basename "$f" .mkv`
-          WriteLog "Audio Processing Required"
-          WriteLog "Executing $ffmpeg -y -i '$f-1' -map 0 $sopts $vopts $aopts '$OutputDir/$fname.mp4'"
+          WriteLog -screen "Audio Processing Required" $AlwaysLog
+          WriteLog -noscreen "Executing $ffmpeg -y -i '$f-1' -map 0 $sopts $vopts $aopts '$OutputDir/$fname.mp4'"
           Process="Converted"
           ErrMsg=`$ffmpeg -hwaccel auto -nostdin -y -i "$f-1" -map 0 $sopts $vopts $aopts "$OutputDir/$fname.mp4" 2>&1`
           RC=$?
           CheckRC $RC $f $ErrMsg
+
+          # Remember that uTorrent will be expecting the original file, so return it to once it was.
+          if [ "${Group,,}" = "utorrent" ]; then
+             LogCmd "mv ""$f-1"" ""$f"" " "[StartConversion()]"
+          fi
+
         ;;
 
   esac
@@ -157,8 +176,7 @@ IFS=$'\n'
 case "${Mode,,}" in
 
   "cleanup")
-   fileArray=($(find "$DIR" -type f \( -name "*.db" -or -name "*.nfo" -or -name "*sample*.mkv" -or -name "*Sample*.mkv" -or -name "*SAMPLE*.mkv" \)))
-
+    fileArray=($(find "$DIR" -type f \( -name "*.db" -or -name "*.nfo" -or -name "*sample*.mkv" -or -name "*Sample*.mkv" -or -name "*SAMPLE*.mkv" \)))
   ;;
 
   "processrar")
@@ -174,7 +192,7 @@ case "${Mode,,}" in
   ;;
 
   *)
-    WriteLog "Invalid Mode passed to ReadFiles - $Mode"
+    WriteLog -noscreen "Invalid Mode passed to ReadFiles - $Mode" $AlwaysLog
   ;;
 
 esac
@@ -195,18 +213,23 @@ do
   FileExt="${ProcessFile##*.}"
   FileName="${ProcessFile%.*}"
 
-  WriteLog -noscreen "[ReadFiles()] ProcessFile : $ProcessFile"
+  WriteLog -noscreen "[ReadFiles()] ProcessFile : $ProcessFile" 
   WriteLog -noscreen "[ReadFiles()] FileExt     : $FileExt"
   WriteLog -noscreen "[ReadFiles()] FileName    : $FileName"
 
   case "${Mode,,}" in
     "cleanup")
-      WriteLog "Deleteing $f"
-      LogCmd "rm ""$f"" " "[ReadFiles()]"
+      WriteLog -noscreen "Deleteing $f"
+      
+      if [ "${Group,,}" != "utorrent" ]; then
+        LogCmd "rm ""$f"" " "[ReadFiles()]"
+      else
+        WriteLog -noscreen "Skipping Cleanup for $Group"
+      fi
     ;;
 
     "processrar")
-      WriteLog "Unrar $f"
+      WriteLog -noscreen "Unrar $f" $AlwaysLog
       unrar e -idq -p- -y "$f" "$(dirname ""$f"")" 
       ProcessingResult=$?
     ;;
@@ -216,16 +239,16 @@ do
     ;;
 
     "processmp4")
-      WriteLog "Copying $f to $OutputDir/$CleanNZBName.$FileExt"
+      WriteLog -noscreen "Copying $f to $OutputDir/$CleanNZBName.$FileExt" $AlwaysLog
       LogCmd "cp $f $OutputDir/$CleanNZBName.$FileExt" "[ReadFiles()]"
     ;;
 
     "software")
-      WriteLog "Nothing to do for $Mode"
+      WriteLog -noscreen "Nothing to do for $Mode" $AlwaysLog
     ;;
 
     *)
-      WriteLog "Not processing any file changes due to invalid mode"
+      WriteLog -noscreen "Not processing any file changes due to invalid mode" $AlwaysLog
     ;;
   esac
 done
@@ -234,7 +257,7 @@ done
 
 function SendNotification {
  # Notify the world that we have completed our tasks
-  WriteLog "Sending email to $EmailTo"
+  WriteLog -screen "Sending email to $EmailTo"
   EmailMsgFile="`dirname $0`/EmailMsg"
 
   LogCmd "rm -rf ""$EmailMsgFile""" "[SendNotification()]"
@@ -249,6 +272,10 @@ function SendNotification {
 
   if [ ${NotificationsEnabled,,} = "true" ]; then
      mpack -s "$CleanNZBName $Process RC=$RC" -d "$EmailMsgFile" $LogFile $EmailTo
+  else
+     WriteLog -screen "Notifications Disabled : mpack -s ""$CleanNZBName $Process RC=$RC"" -d ""$EmailMsgFile"" $LogFile $EmailTo"
+     WriteLog -screen "Body : "
+     WriteLog -screen "$(cat ""$EmailMsgFile"")"
   fi
 
 }
@@ -267,30 +294,31 @@ function CheckRC {
   case "$1" in
        "0" )
           ##  put new file in place
-          WriteLog "Conversion = SUCCESS"
+          WriteLog -noscreen "Conversion = SUCCESS" $AlwaysLog
           ProcessingResult="Success"
           #rm -rf "$f"-1
           #chmod 666 "$2"
        ;;
 
        * )
-          WriteLog "Conversion = FAIL - $1"
-          WriteLog "$3"
-          WriteLog "$ErrMsg"
+          WriteLog -noscreen "Conversion = FAIL - $1" $AlwaysLog
+          WriteLog -noscreen "$3" $AlwaysLog
+          WriteLog -noscreen "$ErrMsg" $AlwaysLog
           ProcessingResult="Failed - $1"
           ##  revert back
-          WriteLog "Removing failed output $OutputDir/$fname.mp4"
+          WriteLog -noscreen "Removing failed output $OutputDir/$fname.mp4"
           LogCmd "rm -rf ""$OutputDir/$fname.mp4"" " "[CheckRC()]"
           LogCmd "rm -rf ""$2"" " "[CheckRC()]"
           
           LogCmd "mv ""$2""-1 ""$2"" " "[CheckRC()]"
           
-          WriteLog "Copying $2 to $OutputDir/$CleanNZBName.$FileExt"
+          WriteLog -noscreen "Copying $2 to $OutputDir/$CleanNZBName.$FileExt"
           LogCmd "cp ""$2"" ""$OutputDir/$CleanNZBName.$FileExt"" " "[CheckRC()]"
        ;;
   esac
 }
 
+# If we have been poked, show them the path to enlightenment only
 if [ $# -eq 0 ]; then
    echo "1. FinalDir"
    echo "2. OrigNameNZB"
@@ -329,8 +357,8 @@ else
 fi
 
 touch "$LogFile" 
-WriteLog -noscreen "-------------------------"
-WriteLog -noscreen "Begin Download Processing"
+WriteLog -noscreen "-------------------------" $AlwaysLog
+WriteLog -noscreen "Begin Download Processing" $AlwaysLog
 LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 
 # Initiate the uninitiated
@@ -351,13 +379,10 @@ case "${Category,,}" in
    # CouchPotato should be configured to send a label of Movies
 
    "tv" | "utorrent")
-
        OutputDir="/mnt/rdisk/Downloads/Watch/Rename/TV"
-
    ;;
 
    "movie" | "movies")
-
        OutputDir="/mnt/rdisk/Downloads/Watch/Rename/Movies"
    ;;
 
@@ -369,7 +394,7 @@ case "${Category,,}" in
    *)
     # Someone is trying to lead us down the category path, so log the lies
     # and output to our home.
-    WriteLog "Unknown Category [$Category]"
+    WriteLog -noscreen "Unknown Category [$Category]" $AlwaysLog
     Category="Unknown"
     FlagUnknownCategory=1
 
@@ -378,41 +403,41 @@ case "${Category,,}" in
 esac
 
 # Record the present
-WriteLog -noscreen "------------------------"
-WriteLog -noscreen "1.  FinalDir........... $CleanDir"
-WriteLog -noscreen "2.  OrigNameNZB........ $OrigNameNZB"
-WriteLog -noscreen "3.  NZBName............ $CleanNZBName"
-WriteLog -noscreen "4.  IndexersReportNbr.. $IndexersReportNbr"
-WriteLog -noscreen "5.  Category........... $Category"
-WriteLog -noscreen "6.  Group.............. $Group"
-WriteLog -noscreen "7.  PostProcessStatus.. $PostProcessStatus"
-WriteLog -noscreen "8.  FailURL............ $FailURL"
-WriteLog -noscreen "    OutputDir.......... $OutputDir"
-WriteLog -noscreen "------------------------"
+WriteLog -noscreen "------------------------" $AlwaysLog
+WriteLog -noscreen "1.  FinalDir........... $CleanDir" $AlwaysLog
+WriteLog -noscreen "2.  OrigNameNZB........ $OrigNameNZB" $AlwaysLog
+WriteLog -noscreen "3.  NZBName............ $CleanNZBName" $AlwaysLog
+WriteLog -noscreen "4.  IndexersReportNbr.. $IndexersReportNbr" $AlwaysLog
+WriteLog -noscreen "5.  Category........... $Category" $AlwaysLog
+WriteLog -noscreen "6.  Group.............. $Group" $AlwaysLog
+WriteLog -noscreen "7.  PostProcessStatus.. $PostProcessStatus" $AlwaysLog
+WriteLog -noscreen "8.  FailURL............ $FailURL" $AlwaysLog
+WriteLog -noscreen "    OutputDir.......... $OutputDir" $AlwaysLog
+WriteLog -noscreen "------------------------" $AlwaysLog
 
 # Check that our destination exists and is not a black hole
 if [ -d "$FinalDir" ]
 then
   ##  cleanup by deleting unwanted files
-  WriteLog "Begin File Cleanup"
+  WriteLog -screen "Begin File Cleanup"
   ReadFiles "$FinalDir" "CleanUp"
-  WriteLog "End File Cleanup"
+  WriteLog -noscreen "End File Cleanup"
 
-  WriteLog "Begin UnRAR Files"
+  WriteLog -screen "Begin UnRAR Files"
   ReadFiles "$FinalDir" "ProcessRAR"
-  WriteLog "End UnRAR Files"
+  WriteLog -noscreen "End UnRAR Files"
 
   # Begin changing the world
-  WriteLog "Begin ProcessMKV"
+  WriteLog -screen "Begin ProcessMKV"
   ReadFiles "$FinalDir" "ProcessMKV"
-  WriteLog "End ProcessMKV"
+  WriteLog -noscreen "End ProcessMKV"
 
-  WriteLog "Begin ProcessMP4"
+  WriteLog -screen "Begin ProcessMP4"
   ReadFiles "$FinalDir" "ProcessMP4"
-  WriteLog "End ProcessMP4"
+  WriteLog -noscreen "End ProcessMP4"
 
 else
-  WriteLog "$FinalDir doesn't exist bitches"
+  WriteLog -screen "$FinalDir doesn't exist bitches" $AlwaysLog
 fi
 
 # Make sure that information is free for all who seek it
@@ -421,7 +446,7 @@ LogCmd "chmod 666 ""$LogFile""" "[Main()]"
 # Send out the notications on what we saw here today
 SendNotification
 
-WriteLog "Executing mv $LogFile `dirname $0`/Logs/"
+WriteLog -noscreen "Executing mv $LogFile `dirname $0`/Logs/"
 mv "$LogFile" "`dirname $0`/Logs/"
 
 # Write to the log and to the screen so ihistory knows my great deeds.
