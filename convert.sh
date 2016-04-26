@@ -11,11 +11,19 @@ EmailTo="pcrosthwaite@gmail.com"
 # VerboseMode
 # 1 = Log Everything. Display to screen everything
 # 2 = Basic Logging, Display to screen as designed
-VerboseMode=2
+VerboseMode=1
 
 # This controls what messages are logged when the VerboseMode is only doing Basic Logging
 # and should be set to the same value as Log Everything
 AlwaysLog=1
+
+# Setting to keep the logging clean
+# Remove the logs = 1
+# Keep the Logs = 0
+RemoveOldLogs=1
+
+# Nbr of days to find the oldies
+NbrOfDays=7
 
 function WriteLog {
  # This is what will record our brave deeds into the history books
@@ -448,6 +456,11 @@ SendNotification
 
 WriteLog -noscreen "Executing mv $LogFile `dirname $0`/Logs/"
 mv "$LogFile" "`dirname $0`/Logs/"
+
+# Cleanup on Aisle 4
+if [ $RemoveOldLogs -eq 1 ]; then
+  find "`dirname $0`/Logs/" -mtime +$NbrOfDays -exec rm -rf {} \; 
+fi
 
 # Write to the log and to the screen so ihistory knows my great deeds.
 echo "Processing $ProcessingResult"
